@@ -210,6 +210,27 @@ func TestIsFqdnEscaped(t *testing.T) {
 	}
 }
 
+func TestEqual(t *testing.T) {
+	type testcase struct {
+		a, b  string
+		match bool
+	}
+	tests := []testcase{
+		{"a", "a", true},
+		{"a", "A", true},
+		{"A", "a", true},
+		{"A", "b", false},
+		{"www.example.com.", "www.exAmpLe.com.", true},
+		{"www.example.com.", "www.exAmpLe.org.", false},
+	}
+	for _, x := range tests {
+		eq := equal(x.a, x.b)
+		if eq != x.match {
+			t.Errorf("%+v: want: %t got: %t", x, x.match, eq)
+		}
+	}
+}
+
 func BenchmarkSplitLabels(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		Split("www.example.com.")

@@ -85,19 +85,22 @@ func CompareDomainName(s1, s2 string) (n int) {
 
 // CountLabel counts the the number of labels in the string s.
 // s must be a syntactically valid domain name.
-func CountLabel(s string) (labels int) {
+func CountLabel(s string) int {
 	if s == "." {
-		return
+		return 0
 	}
-	off := 0
-	end := false
-	for {
-		off, end = NextLabel(s, off)
-		labels++
-		if end {
-			return
+	labels := 1
+	for i := 0; i < len(s)-1; i++ {
+		c := s[i]
+		if c == '\\' {
+			i++
+			continue
+		}
+		if c == '.' {
+			labels++
 		}
 	}
+	return labels
 }
 
 // Split splits a name s into its label indexes.
@@ -126,18 +129,13 @@ func Split(s string) []int {
 // The bool end is true when the end of the string has been reached.
 // Also see PrevLabel.
 func NextLabel(s string, offset int) (i int, end bool) {
-	quote := false
 	for i = offset; i < len(s)-1; i++ {
-		switch s[i] {
-		case '\\':
-			quote = !quote
-		default:
-			quote = false
-		case '.':
-			if quote {
-				quote = !quote
-				continue
-			}
+		c := s[i]
+		if c == '\\' {
+			i++
+			continue
+		}
+		if c == '.' {
 			return i + 1, false
 		}
 	}
@@ -170,18 +168,19 @@ func equal(a, b string) bool {
 	if la != lb {
 		return false
 	}
-
-	for i := la - 1; i >= 0; i-- {
-		ai := a[i]
-		bi := b[i]
-		if ai >= 'A' && ai <= 'Z' {
-			ai |= 'a' - 'A'
-		}
-		if bi >= 'A' && bi <= 'Z' {
-			bi |= 'a' - 'A'
-		}
-		if ai != bi {
-			return false
+	if a != b {
+		// case-insensitive comparison
+		for i := la - 1; i >= 0; i-- {
+			ai := a[i]
+			bi := b[i]
+			if ai != bi {
+				if bi < ai {
+					bi, ai = ai, bi
+				}
+				if !('A' <= ai && ai <= 'Z' && bi == ai+'a'-'A') {
+					return false
+				}
+			}
 		}
 	}
 	return true

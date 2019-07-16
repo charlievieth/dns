@@ -754,13 +754,25 @@ func (dns *Msg) Pack() (msg []byte, err error) {
 	return dns.PackBuffer(nil)
 }
 
+// WARN
+var compressionPackPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[string]uint16)
+	},
+}
+
 // PackBuffer packs a Msg, using the given buffer buf. If buf is too small a new buffer is allocated.
 func (dns *Msg) PackBuffer(buf []byte) (msg []byte, err error) {
 	// If this message can't be compressed, avoid filling the
 	// compression map and creating garbage.
 	if dns.Compress && dns.isCompressible() {
-		compression := make(map[string]uint16) // Compression pointer mappings.
-		return dns.packBufferWithCompressionMap(buf, compressionMap{int: compression}, true)
+		compression := compressionPackPool.Get().(map[string]uint16)
+		for k := range compression {
+			delete(compression, k)
+		}
+		msg, err := dns.packBufferWithCompressionMap(buf, compressionMap{int: compression}, true)
+		compressionPackPool.Put(compression)
+		return msg, err
 	}
 
 	return dns.packBufferWithCompressionMap(buf, compressionMap{}, false)
@@ -972,6 +984,13 @@ func (dns *Msg) isCompressible() bool {
 		len(dns.Ns) > 0 || len(dns.Extra) > 0
 }
 
+// WARN
+var compressionPool = sync.Pool{
+	New: func() interface{} {
+		return make(map[string]struct{})
+	},
+}
+
 // Len returns the message length when in (un)compressed wire format.
 // If dns.Compress is true compression it is taken into account. Len()
 // is provided to be a faster way to get the size of the resulting packet,
@@ -980,8 +999,14 @@ func (dns *Msg) Len() int {
 	// If this message can't be compressed, avoid filling the
 	// compression map and creating garbage.
 	if dns.Compress && dns.isCompressible() {
-		compression := make(map[string]struct{})
-		return msgLenWithCompressionMap(dns, compression)
+		// compression := make(map[string]struct{})
+		compression := compressionPool.Get().(map[string]struct{})
+		for k := range compression {
+			delete(compression, k)
+		}
+		n := msgLenWithCompressionMap(dns, compression)
+		compressionPool.Put(compression)
+		return n
 	}
 
 	return msgLenWithCompressionMap(dns, nil)

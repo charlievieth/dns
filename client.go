@@ -250,6 +250,14 @@ func (co *Conn) ReadMsgHeader(hdr *Header) ([]byte, error) {
 	return p, err
 }
 
+// func readUint16(r io.Reader) (uint16, error) {
+// 	var b [2]byte
+// 	if _, err := io.ReadFull(r, b[:]); err != nil {
+// 		return 0, err
+// 	}
+// 	return uint16(b[1]) | uint16(b[0])<<8, nil
+// }
+
 // Read implements the net.Conn read method.
 func (co *Conn) Read(p []byte) (n int, err error) {
 	if co.Conn == nil {

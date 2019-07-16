@@ -174,6 +174,8 @@ func toBase64(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
 // dynamicUpdate returns true if the Rdlength is zero.
 func noRdata(h RR_Header) bool { return h.Rdlength == 0 }
 
+// TODO (CEV): change these to not use the 'binary' package
+
 func unpackUint8(msg []byte, off int) (i uint8, off1 int, err error) {
 	if off+1 > len(msg) {
 		return 0, len(msg), &Error{err: "overflow unpacking uint8"}
@@ -261,28 +263,42 @@ func packUint64(i uint64, msg []byte, off int) (off1 int, err error) {
 }
 
 func unpackString(msg []byte, off int) (string, int, error) {
-	if off+1 > len(msg) {
+	start := off + 1
+	if start > len(msg) {
 		return "", off, &Error{err: "overflow unpacking txt"}
 	}
 	l := int(msg[off])
-	if off+l+1 > len(msg) {
+	end := start + l
+	if end > len(msg) {
 		return "", off, &Error{err: "overflow unpacking txt"}
 	}
 	var s strings.Builder
-	s.Grow(l)
-	for _, b := range msg[off+1 : off+1+l] {
+	p := msg[start:end]
+	for i, b := range p {
 		switch {
 		case b == '"' || b == '\\':
+			if s.Len() == 0 {
+				s.Grow(l * 2)
+				s.Write(p[:i])
+			}
 			s.WriteByte('\\')
 			s.WriteByte(b)
 		case b < ' ' || b > '~': // unprintable
+			if s.Len() == 0 {
+				s.Grow(l * 2)
+				s.Write(p[:i])
+			}
 			s.WriteString(escapeByte(b))
 		default:
-			s.WriteByte(b)
+			if s.Len() != 0 {
+				s.WriteByte(b)
+			}
 		}
 	}
-	off += 1 + l
-	return s.String(), off, nil
+	if s.Len() == 0 {
+		return string(p), end, nil
+	}
+	return s.String(), end, nil
 }
 
 func packString(s string, msg []byte, off int) (int, error) {
