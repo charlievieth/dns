@@ -4,7 +4,6 @@ import (
 	"errors"
 	"net"
 	"strconv"
-	"strings"
 )
 
 const hexDigit = "0123456789abcdef"
@@ -267,15 +266,13 @@ func IsMsg(buf []byte) error {
 
 // IsFqdn checks if a domain name is fully qualified.
 func IsFqdn(s string) bool {
-	s2 := strings.TrimSuffix(s, ".")
-	if s == s2 {
+	if s[len(s)-1] != '.' {
 		return false
 	}
-
-	i := strings.LastIndexFunc(s2, func(r rune) bool {
-		return r != '\\'
-	})
-
+	s2 := s[:len(s)-1]
+	i := len(s2) - 1
+	for ; i >= 0 && s2[i] == '\\'; i-- {
+	}
 	// Test whether we have an even number of escape sequences before
 	// the dot or none.
 	return (len(s2)-i)%2 != 0
