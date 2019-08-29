@@ -368,16 +368,11 @@ func unpackStringHex(msg []byte, off, end int) (string, int, error) {
 }
 
 func packStringHex(s string, msg []byte, off int) (int, error) {
-	h, err := hex.DecodeString(s)
-	if err != nil {
-		return len(msg), err
-	}
-	if off+len(h) > len(msg) {
+	if off+hex.DecodedLen(len(s)) > len(msg) {
 		return len(msg), &Error{err: "overflow packing hex"}
 	}
-	copy(msg[off:off+len(h)], h)
-	off += len(h)
-	return off, nil
+	n, err := hex.Decode(msg[off:], []byte(s))
+	return off + n, err
 }
 
 func unpackStringAny(msg []byte, off, end int) (string, int, error) {
