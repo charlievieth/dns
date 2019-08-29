@@ -13,27 +13,29 @@ func SplitDomainName(s string) (labels []string) {
 	if len(s) == 0 {
 		return nil
 	}
-	fqdnEnd := 0 // offset of the final '.' or the length of the name
-	idx := Split(s)
-	begin := 0
+	if s == "." {
+		return nil
+	}
+	// offset of the final '.' or the length of the name
+	var fqdnEnd int
 	if IsFqdn(s) {
 		fqdnEnd = len(s) - 1
 	} else {
 		fqdnEnd = len(s)
 	}
-
-	switch len(idx) {
-	case 0:
-		return nil
-	case 1:
-		// no-op
-	default:
-		for _, end := range idx[1:] {
-			labels = append(labels, s[begin:end-1])
-			begin = end
+	var (
+		begin int
+		off   int
+		end   bool
+	)
+	for {
+		off, end = NextLabel(s, off)
+		if end {
+			break
 		}
+		labels = append(labels, s[begin:off-1])
+		begin = off
 	}
-
 	return append(labels, s[begin:fqdnEnd])
 }
 
@@ -52,33 +54,28 @@ func CompareDomainName(s1, s2 string) (n int) {
 		return 0
 	}
 
-	l1 := Split(s1)
-	l2 := Split(s2)
-
-	j1 := len(l1) - 1 // end
-	i1 := len(l1) - 2 // start
-	j2 := len(l2) - 1
-	i2 := len(l2) - 2
-	// the second check can be done here: last/only label
-	// before we fall through into the for-loop below
-	if equal(s1[l1[j1]:], s2[l2[j2]:]) {
-		n++
-	} else {
-		return
+	j1 := len(s1) - 1
+	if s1[j1] == '.' {
+		j1--
 	}
+	j2 := len(s2) - 1
+	if s2[j2] == '.' {
+		j2--
+	}
+	var i1, i2 int
 	for {
-		if i1 < 0 || i2 < 0 {
-			break
-		}
-		if equal(s1[l1[i1]:l1[j1]], s2[l2[i2]:l2[j2]]) {
+		i1 = prevLabel(s1, j1)
+		i2 = prevLabel(s2, j2)
+		if equal(s1[i1:j1], s2[i2:j2]) {
 			n++
 		} else {
 			break
 		}
-		j1--
-		i1--
-		j2--
-		i2--
+		if i1 == 0 || i2 == 0 {
+			break
+		}
+		j1 = i1 - 2
+		j2 = i2 - 2
 	}
 	return
 }
@@ -142,22 +139,57 @@ func NextLabel(s string, offset int) (i int, end bool) {
 	return i + 1, true
 }
 
+func prevLabel(s string, offset int) int {
+	for i := offset; i >= 0; i-- {
+		if s[i] == '.' {
+			if i == 0 || s[i-1] != '\\' {
+				return i + 1 // the '.' is not escaped
+			}
+			// We are at '\.' and need to check if the '\' itself is escaped.
+			// We do this by walking backwards from '\.' and counting the
+			// number of '\' we encounter.  If the number of '\' is even
+			// (though here it's actually odd since we start at '\.') the '\'
+			// is escaped.
+			j := i - 2
+			for ; j >= 0 && s[j] == '\\'; j-- {
+			}
+			// An odd number here indicates that the '\' preceding the '.'
+			// is escaped.
+			if (i-j)&1 == 1 {
+				return i + 1
+			}
+			i = j + 1
+		}
+	}
+	return 0
+}
+
 // PrevLabel returns the index of the label when starting from the right and
 // jumping n labels to the left.
 // The bool start is true when the start of the string has been overshot.
 // Also see NextLabel.
 func PrevLabel(s string, n int) (i int, start bool) {
+	if s == "." {
+		return 0, true
+	}
 	if n == 0 {
 		return len(s), false
 	}
-	lab := Split(s)
-	if lab == nil {
+	i = len(s) - 1
+	if s[i] == '.' {
+		i--
+	}
+	for ; n > 0; n-- {
+		i = prevLabel(s, i)
+		if i == 0 {
+			break
+		}
+		i -= 2
+	}
+	if n > 0 {
 		return 0, true
 	}
-	if n > len(lab) {
-		return 0, true
-	}
-	return lab[len(lab)-n], false
+	return i + 2, false
 }
 
 // equal compares a and b while ignoring case. It returns true when equal otherwise false.
